@@ -1,0 +1,237 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+
+class Program
+{
+    static int width = 40;
+    static int height = 20;
+    static List<(int, int)> snake = new List<(int, int)>();
+    static (int, int) food;
+    static int dirX = 1, dirY = 0;
+    static ConsoleKey currentKey = ConsoleKey.RightArrow;
+    static Random rand = new Random();
+    static int score = 0;
+    static int level = 1;
+    static int prevLevel = 1;
+    static bool isAccelerated = false;  
+    static int accelerationFactor = 50; 
+    static int normalSpeed = 100; 
+
+    static void Main()
+    {
+        Console.CursorVisible = false;
+        Console.SetWindowSize(width + 2, height + 3);
+        Console.SetBufferSize(width + 2, height + 3);
+
+        snake.Add((width / 2, height / 2));
+        PlaceFood();
+
+        Thread inputThread = new Thread(ReadInput);
+        inputThread.Start();
+
+       
+        PlayBackgroundMusic();
+
+        while (true)
+        {
+            Update();
+            Draw();
+            int speed = isAccelerated ? accelerationFactor : normalSpeed;  
+            if (speed < 50) speed = 50; 
+            Thread.Sleep(speed);
+        }
+    }
+
+    static void ReadInput()
+    {
+        while (true)
+        {
+            var key = Console.ReadKey(true).Key;
+            lock (snake)
+            {
+                if (key == ConsoleKey.W && dirY != 1) { dirX = 0; dirY = -1; currentKey = key; }
+                else if (key == ConsoleKey.S && dirY != -1) { dirX = 0; dirY = 1; currentKey = key; }
+                else if (key == ConsoleKey.A && dirX != 1) { dirX = -1; dirY = 0; currentKey = key; }
+                else if (key == ConsoleKey.D && dirX != -1) { dirX = 1; dirY = 0; currentKey = key; }
+
+                if (key == ConsoleKey.Spacebar)  
+                {
+                    isAccelerated = true;
+                }
+                else if (key == ConsoleKey.Enter)  // лол
+                {
+                    isAccelerated = false;
+                }
+            }
+        }
+    }
+
+    static void Update()
+    {
+        lock (snake)
+        {
+            var head = snake[0];
+            var newHead = (head.Item1 + dirX, head.Item2 + dirY);
+
+            if (newHead.Item1 < 0 || newHead.Item1 >= width || newHead.Item2 < 0 || newHead.Item2 >= height || snake.Contains(newHead))
+            {
+                GameOver();
+                return;
+            }
+
+            snake.Insert(0, newHead);
+
+            if (newHead == food)
+            {
+                score++;
+                Console.Beep(800, 150);  // Звук при поедании еды
+                if (score % 5 == 0)
+                {
+                    prevLevel = level;
+                    level++;
+                }
+                PlaceFood();
+            }
+            else
+            {
+                snake.RemoveAt(snake.Count - 1);
+            }
+        }
+    }
+
+    static void PlaceFood()
+    {
+        do
+        {
+            food = (rand.Next(0, width), rand.Next(0, height));
+        } while (snake.Contains(food));
+    }
+
+    static void Draw()
+    {
+        Console.SetCursorPosition(0, 0);
+
+      
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.Write('╔');
+        for (int i = 0; i < width; i++) Console.Write('═');
+        Console.WriteLine('╗');
+
+       
+        for (int y = 0; y < height; y++)
+        {
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write('║');
+            for (int x = 0; x < width; x++)
+            {
+                char ch = ' ';
+                ConsoleColor color = ConsoleColor.White;
+
+                
+                if (food.Item1 == x && food.Item2 == y)
+                {
+                    ch = 'X';
+                    color = ConsoleColor.Red;
+                }
+                else
+                {
+                    
+                    for (int i = 0; i < snake.Count; i++)
+                    {
+                        if (snake[i].Item1 == x && snake[i].Item2 == y)
+                        {
+                            ch = '■';  
+                            color = ConsoleColor.Green;
+                            break;
+                        }
+                    }
+                }
+
+                Console.ForegroundColor = color;
+                Console.Write(ch);
+            }
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine('║');
+        }
+
+        
+        Console.Write('╚');
+        for (int i = 0; i < width; i++) Console.Write('═');
+        Console.WriteLine('╝');
+
+        
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine($" Счет: {score}");
+        Console.WriteLine($" Уровень: {level}");
+        Console.WriteLine($"Нажмите пробел для ускорения"); // не работает, разобаться 
+    }
+
+    static void GameOver()
+    {
+       
+        PlayGameOverSound();
+
+        Console.Clear();
+
+        string message = "ИГРА ОКОНЧЕНА";
+        string finalScore = $"Твой счёт: {score}";
+        string finalLevel = $"Текущий уровень: {level}";
+        string prevLevelMessage = $"Предыдущий уровень: {prevLevel}";
+        string exitMsg = "Нажми любую клавишу для выхода...";
+
+        int centerX = (Console.WindowWidth / 2) - (message.Length / 2);
+        int centerY = (Console.WindowHeight / 2) - 3;  
+
+       
+        Console.SetCursorPosition(centerX, centerY);
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.WriteLine(message);
+
+        Console.SetCursorPosition(centerX, centerY + 1);
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine(finalScore);
+
+        Console.SetCursorPosition(centerX, centerY + 2);
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine(finalLevel);
+
+        Console.SetCursorPosition(centerX, centerY + 3);
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine(prevLevelMessage);
+
+        Console.SetCursorPosition(centerX - 2, centerY + 5);
+        Console.ForegroundColor = ConsoleColor.Gray;
+        Console.WriteLine(exitMsg);
+
+        Console.ResetColor();
+        Console.ReadKey();
+        Environment.Exit(0);
+    }
+
+    // Фоновая музыка
+    static void PlayBackgroundMusic()
+    {
+        // Воспроизведение мелодии через Beep 
+        new Thread(() =>
+        {
+            while (true)
+            {
+                Console.Beep(440, 500);  
+                Thread.Sleep(500);
+                Console.Beep(494, 500);  
+                Thread.Sleep(500);
+                Console.Beep(523, 500);  
+                Thread.Sleep(500);
+            }
+        }).Start();
+    }
+
+    
+    static void PlayGameOverSound()
+    {
+        Console.Beep(600, 300);  
+        Thread.Sleep(300);
+        Console.Beep(500, 500);  
+    }
+}
